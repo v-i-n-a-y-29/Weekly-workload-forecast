@@ -1,0 +1,31 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Employee {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(100)
+  role           String   @db.VarChar(50)
+  weeklyCapacity Int      @default(40) @map("weekly_capacity")
+  tasks          Task[]
+
+  @@map("employees")
+}
+
+model Task {
+  id                 String    @id @default(uuid()) @db.Uuid
+  title              String    @db.VarChar(150)
+  estimatedHours     Decimal   @map("estimated_hours") @db.Decimal(5, 2)
+  priority           String    @db.VarChar(20)
+  status             String    @db.VarChar(20)
+  dueDate            DateTime  @map("due_date") @db.Date
+  assignedEmployeeId String?   @map("assigned_employee_id") @db.Uuid
+  employee           Employee? @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+}

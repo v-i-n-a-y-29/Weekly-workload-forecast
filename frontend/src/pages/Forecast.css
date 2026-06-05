@@ -1,0 +1,21 @@
+/* src/pages/Forecast.css */
+
+.utilization-safe {
+  background: #22c55e;
+}
+
+.utilization-warning {
+  background: #eab308;
+}
+
+.utilization-critical {
+  background: #ef4444;
+}
+
+.forecast-card {
+  transition: all 0.3s ease;
+}
+
+.forecast-card:hover {
+  transform: translateY(-4px);
+}

@@ -1,0 +1,46 @@
+/* src/styles/globals.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+body {
+  font-family: 'Hanken Grotesk', sans-serif;
+  background: radial-gradient(
+    circle at top left,
+    #f3e8ff 0%,
+    #ffffff 50%,
+    #f1f5f9 100%
+  );
+  min-height: 100vh;
+  color: #1b1c1c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.page-title {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+}
+
+.section-title {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 600;
+}
+
+.mono-label {
+  font-family: 'JetBrains Mono', monospace;
+}

@@ -1,0 +1,16 @@
+/* src/pages/Tasks.css */
+
+.priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.priority-medium {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.priority-low {
+  background: #e5e7eb;
+  color: #4b5563;
+}

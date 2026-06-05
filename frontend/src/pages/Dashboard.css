@@ -1,0 +1,39 @@
+/* src/pages/Dashboard.css */
+
+.overload-pulse {
+  position: relative;
+  overflow: hidden;
+}
+
+.overload-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,0.4),
+    transparent
+  );
+
+  animation: pulse-slide 2s infinite;
+}
+
+@keyframes pulse-slide {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.dashboard-card {
+  transition: all 0.3s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+}

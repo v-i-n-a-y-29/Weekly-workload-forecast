@@ -1,0 +1,18 @@
+.sidebar-link {
+  transition: all 0.25s ease;
+}
+
+.sidebar-link:hover {
+  transform: translateX(4px);
+}
+
+.sidebar-active {
+  background: #7c3aed;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(124, 92, 246, 0.25);
+}
+
+.fill-icon {
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
+}

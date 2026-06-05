@@ -1,0 +1,9 @@
+/* src/pages/Analytics.css */
+
+.analytics-chart-bar {
+  transition: all 0.3s ease;
+}
+
+.analytics-chart-bar:hover {
+  opacity: 0.8;
+}

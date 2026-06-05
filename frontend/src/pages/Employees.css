@@ -1,0 +1,13 @@
+/* src/pages/Employees.css */
+
+.employee-status-good {
+  color: #16a34a;
+}
+
+.employee-status-warning {
+  color: #ca8a04;
+}
+
+.employee-status-danger {
+  color: #dc2626;
+}

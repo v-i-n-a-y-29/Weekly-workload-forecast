@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Card from "../components/Card";
+import { getTasks, createTask } from "../services/taskService";
+import { getEmployees } from "../services/employeeService";
 
 export default function Tasks() {
   const [showModal, setShowModal] = useState(false);
@@ -15,88 +17,119 @@ export default function Tasks() {
   const [estHours, setEstHours] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const [assignedEmployee, setAssignedEmployee] = useState("Elena Smith");
+  const [assignedEmployee, setAssignedEmployee] = useState("");
 
-  const [tasks, setTasks] = useState([
-    {
-      title: "Q3 Strategy Alignment",
-      project: "Horizon-2024",
-      assignedName: "Elena Smith",
-      assignedImg: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces",
-      hours: 18.5,
-      priority: "HIGH",
-      dueDate: "Oct 24, 2024",
-      status: "In Progress",
-    },
-    {
-      title: "User Feedback Analysis",
-      project: "Core UI Refactor",
-      assignedName: "Marcus Kane",
-      assignedImg: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
-      hours: 12.0,
-      priority: "MEDIUM",
-      dueDate: "Oct 26, 2024",
-      status: "Pending",
-    },
-    {
-      title: "Database Optimization",
-      project: "System Stability",
-      assignedName: "Aisha Lopez",
-      assignedImg: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces",
-      hours: 32.0,
-      priority: "HIGH",
-      dueDate: "Oct 22, 2024",
-      status: "Delayed",
-    },
-    {
-      title: "API Documentation",
-      project: "Developer Experience",
-      assignedName: "Jordan Tan",
-      assignedImg: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces",
-      hours: 6.0,
-      priority: "LOW",
-      dueDate: "Nov 02, 2024",
-      status: "Queued",
-    },
-  ]);
+  const [tasks, setTasks] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleCreateTask = (e) => {
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [tasksRes, empsRes] = await Promise.all([
+        getTasks(),
+        getEmployees()
+      ]);
+
+      // Map tasks to frontend format
+      const mappedTasks = tasksRes.data.map(task => {
+        // Parse project name and title
+        const match = task.title.match(/^\[([^\]]+)\]\s*(.*)$/);
+        const project = match ? match[1] : "General";
+        const title = match ? match[2] : task.title;
+
+        // Map status
+        let status = "Pending";
+        if (task.status === "IN_PROGRESS") {
+          status = "In Progress";
+        } else if (task.status === "COMPLETED") {
+          status = "Completed";
+        }
+
+        // Map employee details
+        const assignedName = task.employee ? task.employee.name : "Unassigned";
+        
+        // Generate initials avatar text
+        const initials = assignedName
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        // Date format from ISO to short display
+        const dateObj = new Date(task.dueDate);
+        const formattedDate = isNaN(dateObj.getTime()) 
+          ? "Nov 05, 2024"
+          : dateObj.toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+              year: "numeric",
+            });
+
+        return {
+          id: task.id,
+          title: title,
+          project: project,
+          assignedId: task.assignedEmployeeId,
+          assignedName: assignedName,
+          assignedImg: null, // If we don't have images in DB, we'll use fallback initials
+          initials: initials || "UN",
+          hours: Number(task.estimatedHours),
+          priority: task.priority,
+          dueDate: formattedDate,
+          status: status,
+        };
+      });
+
+      setTasks(mappedTasks);
+      setEmployees(empsRes.data);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to load tasks and employees:", err);
+      setError("Failed to fetch task and employee data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleCreateTask = async (e) => {
     e.preventDefault();
     if (!taskTitle || !projectName || !estHours) return;
 
-    const formattedDate = taskDueDate
-      ? new Date(taskDueDate).toLocaleDateString("en-US", {
-          month: "short",
-          day: "2-digit",
-          year: "numeric",
-        })
-      : "Nov 05, 2024";
+    try {
+      const titleWithProject = `[${projectName.trim()}] ${taskTitle.trim()}`;
+      if (!taskDueDate) {
+        alert("Please select a due date.");
+        return;
+      }
 
-    const employeeMap = {
-      "Elena Smith": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces",
-      "Marcus Kane": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
-      "Aisha Lopez": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces",
-      "Jordan Tan": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces",
-    };
+      await createTask({
+        title: titleWithProject,
+        estimatedHours: parseFloat(estHours),
+        priority: taskPriority,
+        status: "NOT_STARTED",
+        dueDate: taskDueDate,
+        assignedEmployeeId: assignedEmployee || null,
+      });
 
-    const newTask = {
-      title: taskTitle,
-      project: projectName,
-      assignedName: assignedEmployee,
-      assignedImg: employeeMap[assignedEmployee] || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces",
-      hours: parseFloat(estHours) || 0,
-      priority: taskPriority,
-      dueDate: formattedDate,
-      status: "Queued",
-    };
-
-    setTasks([...tasks, newTask]);
-    setTaskTitle("");
-    setProjectName("");
-    setEstHours("");
-    setTaskPriority("MEDIUM");
-    setTaskDueDate("");
-    setShowModal(false);
+      setTaskTitle("");
+      setProjectName("");
+      setEstHours("");
+      setTaskPriority("MEDIUM");
+      setTaskDueDate("");
+      setAssignedEmployee("");
+      setShowModal(false);
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to create task:", err);
+      alert(err.response?.data?.error || "Failed to create task.");
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -112,7 +145,13 @@ export default function Tasks() {
     if (activeTab === "Completed" && task.status !== "Completed") {
       return false;
     }
-    if (activeTab === "My Tasks" && task.assignedName !== "Elena Smith") {
+    if (activeTab === "High Priority" && task.priority !== "HIGH") {
+      return false;
+    }
+    if (activeTab === "Medium Priority" && task.priority !== "MEDIUM") {
+      return false;
+    }
+    if (activeTab === "Low Priority" && task.priority !== "LOW") {
       return false;
     }
     return true;
@@ -134,11 +173,11 @@ export default function Tasks() {
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           {/* Toggle Pills */}
           <div className="flex bg-gray-100 p-1 rounded-xl">
-            {["All Tasks", "My Tasks", "Completed"].map((tab) => (
+            {["All Tasks", "Completed", "High Priority", "Medium Priority", "Low Priority"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
                   activeTab === tab
                     ? "bg-white text-gray-900 shadow-sm"
                     : "text-gray-500 hover:text-gray-900"
@@ -286,13 +325,19 @@ export default function Tasks() {
                     {/* Assigned Employee */}
                     <td className="py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                          <img
-                            src={task.assignedImg}
-                            alt={task.assignedName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                        {task.assignedImg ? (
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                            <img
+                              src={task.assignedImg}
+                              alt={task.assignedName}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-slate-200 text-slate-700`}>
+                            {task.initials}
+                          </div>
+                        )}
                         <span className="font-bold text-gray-700 text-xs">
                           {task.assignedName}
                         </span>
@@ -528,10 +573,12 @@ export default function Tasks() {
                       onChange={(e) => setAssignedEmployee(e.target.value)}
                       className="w-full pl-10 pr-8 py-3 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#7c3aed] bg-gray-50/50 appearance-none cursor-pointer"
                     >
-                      <option value="Elena Smith">Elena Smith</option>
-                      <option value="Marcus Kane">Marcus Kane</option>
-                      <option value="Aisha Lopez">Aisha Lopez</option>
-                      <option value="Jordan Tan">Jordan Tan</option>
+                      <option value="">Select Assignee</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.role})
+                        </option>
+                      ))}
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none">
                       expand_more

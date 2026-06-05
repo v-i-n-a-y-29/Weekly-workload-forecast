@@ -1,62 +1,156 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./Dashboard.css";
 import Card from "../components/Card";
+import { getEmployees } from "../services/employeeService";
+import { getForecast } from "../services/forecastService";
+import { getTasks } from "../services/taskService";
+
+const getMonday = (d = new Date()) => {
+  const day = d.getUTCDay();
+  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setUTCDate(diff));
+  const year = monday.getUTCFullYear();
+  const month = String(monday.getUTCMonth() + 1).padStart(2, '0');
+  const date = String(monday.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${date}`;
+};
 
 export default function Dashboard() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const weekStart = searchParams.get("weekStart") || getMonday();
 
-  const employees = [
-    {
-      name: "Sarah K.",
-      capacity: "40h",
-      planned: "38h",
-      utilization: 95,
-      status: "green",
-      avatarText: "SK",
-      avatarBg: "bg-indigo-100 text-indigo-700",
-    },
-    {
-      name: "Marcus V.",
-      capacity: "40h",
-      planned: "44h",
-      utilization: 110,
-      status: "red",
-      avatarImg: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
-    },
-    {
-      name: "Jessica L.",
-      capacity: "35h",
-      planned: "28h",
-      utilization: 80,
-      status: "green",
-      avatarText: "JL",
-      avatarBg: "bg-slate-200 text-slate-700",
-    },
-    {
-      name: "David H.",
-      capacity: "40h",
-      planned: "40h",
-      utilization: 100,
-      status: "yellow",
-      avatarText: "DH",
-      avatarBg: "bg-slate-200 text-slate-700",
-    },
-    {
-      name: "Elena R.",
-      capacity: "40h",
-      planned: "15h",
-      utilization: 37.5,
-      status: "blue",
-      avatarText: "EL",
-      avatarBg: "bg-purple-100 text-purple-700",
-    },
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hoveredHealthBar, setHoveredHealthBar] = useState(null);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [empRes, forecastRes, tasksRes] = await Promise.all([
+        getEmployees(),
+        getForecast(weekStart),
+        getTasks()
+      ]);
+
+      const forecastMap = {};
+      forecastRes.data.forEach(item => {
+        forecastMap[item.employeeId] = item;
+      });
+
+      const mergedEmployees = empRes.data.map(emp => {
+        const forecast = forecastMap[emp.id] || { plannedHours: 0, utilization: 0, warning: 'GREEN' };
+        
+        let status = "green"; // <= 80%
+        if (forecast.utilization >= 100) {
+          status = "red";
+        } else if (forecast.utilization >= 80) {
+          status = "yellow";
+        } else if (forecast.utilization < 50) {
+          status = "blue";
+        }
+
+        const initials = emp.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        return {
+          id: emp.id,
+          name: emp.name,
+          capacity: `${emp.weeklyCapacity}h`,
+          planned: `${forecast.plannedHours}h`,
+          utilization: forecast.utilization,
+          status: status,
+          avatarText: initials || "EE",
+          avatarBg: forecast.utilization >= 100 
+            ? "bg-red-100 text-red-700" 
+            : forecast.utilization >= 80 
+            ? "bg-indigo-100 text-indigo-700" 
+            : "bg-slate-200 text-slate-700",
+        };
+      });
+
+      // Filter non-completed tasks sorted by due date
+      const upcomingTasks = tasksRes.data
+        .filter(t => t.status !== "COMPLETED")
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+      setEmployees(mergedEmployees);
+      setTasks(upcomingTasks);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
+      setError("Failed to fetch dashboard data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [weekStart]);
+
+  const handleWeekChange = (e) => {
+    const selected = e.target.value;
+    if (!selected) return;
+
+    const dateObj = new Date(`${selected}T00:00:00.000Z`);
+    const day = dateObj.getUTCDay();
+    const diff = dateObj.getUTCDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(dateObj.setUTCDate(diff));
+    const year = monday.getUTCFullYear();
+    const month = String(monday.getUTCMonth() + 1).padStart(2, '0');
+    const date = String(monday.getUTCDate()).padStart(2, '0');
+    const formattedMonday = `${year}-${month}-${date}`;
+
+    setSearchParams({ weekStart: formattedMonday });
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["Employee Name", "Capacity", "Planned Hours", "Utilization %", "Status"];
+    const rows = filteredEmployees.map(emp => [
+      emp.name,
+      emp.capacity,
+      emp.planned,
+      `${emp.utilization}%`,
+      emp.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Resource_Utilization_${weekStart}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const filteredEmployees = employees.filter((emp) =>
     emp.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const [hoveredHealthBar, setHoveredHealthBar] = useState(null);
+  // Stats calculation
+  const totalEmployeesCount = employees.length;
+  const totalTasksCount = tasks.length;
+  const averageUtilization = totalEmployeesCount > 0
+    ? (employees.reduce((sum, e) => sum + e.utilization, 0) / totalEmployeesCount).toFixed(1)
+    : "0.0";
+
+  const totalPlannedHours = employees.reduce((sum, e) => {
+    const hours = parseFloat(e.planned) || 0;
+    return sum + hours;
+  }, 0);
+
+  const overloadedCount = employees.filter(e => e.utilization >= 100).length;
+  const underCapacityCount = employees.filter(e => e.utilization < 50).length;
 
   const healthBars = [
     { height: "30%", color: "bg-[#7c3aed]/30", value: 30 },
@@ -68,8 +162,23 @@ export default function Dashboard() {
     { height: "65%", color: "bg-[#7c3aed]/50", value: 65 },
   ];
 
+  const mondayDate = new Date(`${weekStart}T00:00:00.000Z`);
+  const sundayDate = new Date(mondayDate);
+  sundayDate.setUTCDate(mondayDate.getUTCDate() + 6);
+  const options = { month: "short", day: "numeric" };
+  const weekRangeStr = `Week of ${mondayDate.toLocaleDateString("en-US", options)} - ${sundayDate.toLocaleDateString("en-US", { ...options, year: "numeric" })}`;
+
+  if (loading && employees.length === 0) {
+    return <div className="p-8 text-center text-gray-500 font-bold">Loading dashboard metrics...</div>;
+  }
+
   return (
     <div className="flex flex-col gap-6 text-left">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm font-semibold">
+          {error}
+        </div>
+      )}
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -77,21 +186,29 @@ export default function Dashboard() {
             Executive Overview
           </h1>
           <p className="text-gray-400 text-sm font-semibold mt-1">
-            Week of Oct 23 - Oct 29, 2023
+            {weekRangeStr}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edeef3] rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer">
-            <span className="material-symbols-outlined text-[18px] font-medium text-gray-500">
-              filter_list
-            </span>
-            <span>Filters</span>
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edeef3] rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer">
+        
+        <div className="flex gap-3 items-center">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">calendar_today</span>
+            <input
+              type="date"
+              value={weekStart}
+              onChange={handleWeekChange}
+              className="pl-9 pr-3 py-2 bg-white border border-[#edeef3] rounded-xl text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:border-[#7c3aed] cursor-pointer"
+            />
+          </div>
+
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edeef3] rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[18px] font-medium text-gray-500">
               download
             </span>
-            <span>Export</span>
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
@@ -105,14 +222,11 @@ export default function Dashboard() {
                 group
               </span>
             </div>
-            <span className="text-[#22c55e] bg-[#22c55e]/10 px-2 py-0.5 rounded-full text-xs font-extrabold tracking-wide">
-              +2 new
-            </span>
           </div>
           <p className="text-gray-400 font-bold text-[11px] uppercase tracking-wider">
             Total Employees
           </p>
-          <h2 className="text-3xl font-bold mt-1 text-gray-900">124</h2>
+          <h2 className="text-3xl font-bold mt-1 text-gray-900">{totalEmployeesCount}</h2>
         </Card>
 
         <Card>
@@ -126,7 +240,7 @@ export default function Dashboard() {
           <p className="text-gray-400 font-bold text-[11px] uppercase tracking-wider">
             Total Tasks
           </p>
-          <h2 className="text-3xl font-bold mt-1 text-gray-900">842</h2>
+          <h2 className="text-3xl font-bold mt-1 text-gray-900">{totalTasksCount}</h2>
         </Card>
 
         <Card>
@@ -137,13 +251,13 @@ export default function Dashboard() {
               </span>
             </div>
             <span className="text-[#7c3aed] bg-[#7c3aed]/10 px-2 py-0.5 rounded-full text-xs font-extrabold tracking-wide">
-              Optimal
+              {parseFloat(averageUtilization) > 100 ? "Overloaded" : parseFloat(averageUtilization) >= 80 ? "Optimal" : "Available"}
             </span>
           </div>
           <p className="text-gray-400 font-bold text-[11px] uppercase tracking-wider">
-            Team Capacity
+            Avg Team Capacity
           </p>
-          <h2 className="text-3xl font-bold mt-1 text-gray-900">88.4%</h2>
+          <h2 className="text-3xl font-bold mt-1 text-gray-900">{averageUtilization}%</h2>
         </Card>
 
         <Card>
@@ -157,7 +271,7 @@ export default function Dashboard() {
           <p className="text-gray-400 font-bold text-[11px] uppercase tracking-wider">
             Planned Hours
           </p>
-          <h2 className="text-3xl font-bold mt-1 text-gray-900">4,960</h2>
+          <h2 className="text-3xl font-bold mt-1 text-gray-900">{totalPlannedHours}h</h2>
         </Card>
       </div>
 
@@ -208,23 +322,13 @@ export default function Dashboard() {
 
                 <tbody>
                   {filteredEmployees.map((employee, index) => {
-                    const isOverloaded = employee.utilization > 100;
+                    const isOverloaded = employee.utilization >= 100;
                     return (
                       <tr key={index} className="border-b border-gray-50 last:border-none">
                         <td className="py-4 flex items-center gap-3">
-                          {employee.avatarImg ? (
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                              <img
-                                src={employee.avatarImg}
-                                alt={employee.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${employee.avatarBg}`}>
-                              {employee.avatarText}
-                            </div>
-                          )}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${employee.avatarBg}`}>
+                            {employee.avatarText}
+                          </div>
                           <span className="font-bold text-gray-800 text-sm">
                             {employee.name}
                           </span>
@@ -239,15 +343,18 @@ export default function Dashboard() {
                         </td>
 
                         <td className="py-4 w-48">
-                          <div className="bg-gray-100 rounded-full h-2 w-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                isOverloaded ? "bg-red-500" : "bg-[#7c3aed]"
-                              }`}
-                              style={{
-                                width: `${Math.min(employee.utilization, 100)}%`,
-                              }}
-                            />
+                          <div className="flex items-center gap-2">
+                            <div className="bg-gray-100 rounded-full h-2 w-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  isOverloaded ? "bg-red-500" : "bg-[#7c3aed]"
+                                }`}
+                                style={{
+                                  width: `${Math.min(employee.utilization, 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-gray-500 w-8 text-right">{employee.utilization}%</span>
                           </div>
                         </td>
 
@@ -294,7 +401,7 @@ export default function Dashboard() {
                   Overloaded Resources
                 </span>
                 <span className="font-extrabold text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
-                  12
+                  {overloadedCount}
                 </span>
               </div>
 
@@ -303,7 +410,7 @@ export default function Dashboard() {
                   Under-capacity
                 </span>
                 <span className="font-extrabold text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">
-                  8
+                  {underCapacityCount}
                 </span>
               </div>
 
@@ -329,45 +436,39 @@ export default function Dashboard() {
             </h3>
 
             <div className="space-y-3">
-              <div className="flex border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white hover:border-gray-200 transition-all">
-                <div className="w-1.5 bg-red-500" />
-                <div className="p-3 flex-1">
-                  <h4 className="font-bold text-gray-800 text-sm">
-                    Cloud Migration Phase 2
-                  </h4>
-                  <p className="text-gray-400 text-xs mt-0.5 font-semibold">
-                    Due tomorrow, 10:00 AM
-                  </p>
+              {tasks.slice(0, 3).map((task) => {
+                const dateObj = new Date(task.dueDate);
+                const isToday = new Date().toDateString() === dateObj.toDateString();
+                const dueText = isToday 
+                  ? "Due Today" 
+                  : `Due ${dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+                  
+                const isHigh = task.priority === "HIGH";
+                const isMedium = task.priority === "MEDIUM";
+                
+                return (
+                  <div key={task.id} className="flex border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white hover:border-gray-200 transition-all">
+                    <div className={`w-1.5 ${isHigh ? "bg-red-500" : isMedium ? "bg-[#7c3aed]" : "bg-gray-500"}`} />
+                    <div className="p-3 flex-1">
+                      <h4 className="font-bold text-gray-800 text-sm">
+                        {task.title}
+                      </h4>
+                      <p className="text-gray-400 text-xs mt-0.5 font-semibold">
+                        {dueText}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              {tasks.length === 0 && (
+                <div className="text-center py-6 text-sm text-gray-400 font-medium">
+                  No upcoming deadlines
                 </div>
-              </div>
-
-              <div className="flex border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white hover:border-gray-200 transition-all">
-                <div className="w-1.5 bg-[#7c3aed]" />
-                <div className="p-3 flex-1">
-                  <h4 className="font-bold text-gray-800 text-sm">
-                    Client QBR Prep
-                  </h4>
-                  <p className="text-gray-400 text-xs mt-0.5 font-semibold">
-                    Due Oct 27, 2023
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white hover:border-gray-200 transition-all">
-                <div className="w-1.5 bg-gray-500" />
-                <div className="p-3 flex-1">
-                  <h4 className="font-bold text-gray-800 text-sm">
-                    Resource Audit Report
-                  </h4>
-                  <p className="text-gray-400 text-xs mt-0.5 font-semibold">
-                    Due Oct 30, 2023
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="mt-4 text-center">
-              <a href="#" className="text-[#7c3aed] text-xs font-bold hover:underline">
+              <a href="/tasks" className="text-[#7c3aed] text-xs font-bold hover:underline">
                 View All Tasks
               </a>
             </div>

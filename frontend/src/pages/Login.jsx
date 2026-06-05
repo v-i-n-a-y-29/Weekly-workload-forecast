@@ -12,6 +12,7 @@ export default function Login({ onLogin }) {
 
     // Hardcoded credentials check
     if (email === "admin@company.com" && password === "password123") {
+      localStorage.setItem("loginEmail", email);
       onLogin();
     } else {
       setError("Invalid email or password. Use admin@company.com / password123");

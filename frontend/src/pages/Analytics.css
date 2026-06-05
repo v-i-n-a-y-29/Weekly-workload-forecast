@@ -7,3 +7,55 @@
 .analytics-chart-bar:hover {
   opacity: 0.8;
 }
+
+@media print {
+  /* Hide navbar, sidebar, and layout elements marked no-print */
+  nav, aside, .no-print {
+    display: none !important;
+  }
+
+  /* Reset main wrapper layouts to full screen */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .min-h-screen {
+    min-height: auto !important;
+  }
+
+  /* Remove styling of the preview wrapper card container */
+  .preview-card-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    display: block !important;
+  }
+
+  /* Style the report print area to center on 1 single page */
+  .report-print-area {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 600px !important;
+    height: auto !important;
+    min-height: auto !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    margin: 40px auto !important;
+    padding: 32px !important;
+    background: white !important;
+    page-break-inside: avoid !important;
+  }
+
+  .report-employees-list {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

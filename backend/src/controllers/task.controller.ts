@@ -162,6 +162,9 @@ export class TaskController {
   static async getTasks(req: Request, res: Response, next: NextFunction) {
     try {
       const tasks = await prisma.task.findMany({
+        include: {
+          employee: true,
+        },
         orderBy: {
           dueDate: 'asc',
         },

@@ -3,6 +3,7 @@ import { prisma } from '../config/db';
 export interface ForecastResponse {
   employeeId: string;
   name: string;
+  role: string;
   capacity: number;
   plannedHours: number;
   utilization: number;
@@ -42,7 +43,7 @@ export class ForecastService {
       },
     });
 
-    return employees.map((employee : { tasks: any[]; weeklyCapacity: any; id: any; name: any; }) => {
+    return employees.map((employee : { tasks: any[]; weeklyCapacity: any; id: any; name: any; role: any; }) => {
       // Sum the estimated hours for the non-completed tasks
       const plannedHours = employee.tasks.reduce((sum: number, task: { estimatedHours: any; }) => {
         return sum + Number(task.estimatedHours);
@@ -66,10 +67,12 @@ export class ForecastService {
       return {
         employeeId: employee.id,
         name: employee.name,
+        role: employee.role,
         capacity,
         plannedHours: Number(plannedHours.toFixed(2)), // ensure nice formatting for decimals
         utilization,
         warning,
+        tasks: employee.tasks,
       };
     });
   }
